@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.sparse import coo_matrix, find, triu
+from itertools import combinations_with_replacement
 
 
 def rectangle_triangulation(nx, ny):
@@ -18,18 +19,9 @@ def rectangle_triangulation(nx, ny):
     return elem.T
 
 
-def combinations_with_repetitions(arr, k, prefix=[], start=0, result=[]):
-    if k == 0:
-        result.append(prefix.copy())
-        return
-    for i in range(start, len(arr)):
-        combinations_with_repetitions(arr, k - 1, prefix + [arr[i]], i, result)
-    return result
-
-
 def weights_inside_for_PN(N=5):
     k: int = N-3
-    comb = combinations_with_repetitions([1, 2, 3], k, start=0, result=[])
+    comb = list(combinations_with_replacement([1, 2, 3], k))
     comb = np.array(comb)
     comb_with_1 = np.sum(comb == 1, axis=1).reshape((1, -1))
     comb_with_2 = np.sum(comb == 2, axis=1).reshape((1, -1))
