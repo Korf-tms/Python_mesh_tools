@@ -110,12 +110,12 @@ class Mesh2d:
         # this way, edge ordering does not correspond to node ordering, they are sorted
         # elem, edge, value = find(self.elem_edge_adj)
 
-        # for each element, edge 1 is opposite to node 1, etc.
+        # for each element, edge 0 goes form node 0 to 1, 1 (1->2), 2(2->)
         # sparse adjacency matrix - each row is first (second, third) edge of each element, each column is one node
         self.elem_node_adj_partial = []
         for i in range(3):
             row = np.arange(self.n_elem).repeat(2)
-            elem_edge_i = np.delete(self.elem, i, axis=1)
+            elem_edge_i = np.delete(self.elem, i-1, axis=1)
             col = elem_edge_i.flatten()
             data = np.ones((2*self.n_elem,), dtype=int)
             self.elem_node_adj_partial.append(coo_matrix((data, (row, col)), shape=(self.n_elem, self.n_node)))
@@ -128,7 +128,7 @@ class Mesh2d:
         # P4: [1/4, 3/4], [2/4, 2/4], [3/4, 1/4]
         # P5: [1/5, 4/5], [2/5, 3/5], [3/5, 2/5], [4/5, 1/5]
         weights0 = np.arange(1, N).reshape((1, -1))/N
-        weights = np.concatenate((weights0, 1-weights0))
+        weights = np.concatenate((1-weights0, weights0))
         new_node_X = x @ weights
         new_node_Y = y @ weights
         return new_node_X, new_node_Y
@@ -164,10 +164,18 @@ class Mesh2d:
             # indices of first (second, third) edges:
             tmp = self.elem_node_adj_partial[i] @ self.edge_node_adj.T
             tmp[tmp == 1] = 0
-            # tmp[tmp == 2] = 1
             _, edge, _ = find(tmp)
-            self.elem_PN_edge = np.concatenate((self.elem_PN_edge, self.edge_PN[edge]), axis=1)
-            # TODO: order of node indices on each edge; order of all nodes
+            # compare order nodes in edges:
+            edge_start = self.edge[edge, 0]
+            elem_node_i = self.elem[:, i]
+
+            this_edge = np.zeros((self.n_elem, n_node_per_edge))
+            correct_ordering = edge_start == elem_node_i
+            this_edge[correct_ordering, :] = self.edge_PN[edge[correct_ordering]]
+            this_edge[~correct_ordering, :] = np.fliplr(self.edge_PN[edge[~correct_ordering]])
+
+            self.elem_PN_edge = np.concatenate((self.elem_PN_edge, this_edge), axis=1)
+            # TODO: permutation of node indices may be required
 
         # PN node indices for elements - nodes inside
         new_node_X, new_node_Y = self.nodes_inside_elements_for_PN(N)
