@@ -19,6 +19,14 @@ def rectangle_triangulation(nx, ny):
     return elem.T
 
 
+def to_adjacency_matrix(indices_matrix):
+    n_row, n_col = indices_matrix.shape
+    row = np.arange(n_row).repeat(n_col)
+    col = indices_matrix.flatten()
+    data = np.ones((n_col*n_row,), dtype=int)
+    return coo_matrix((data, (row, col)))
+
+
 def weights_inside_for_PN(N=5):
     k: int = N-3
     comb = list(combinations_with_replacement([1, 2, 3], k))
@@ -45,10 +53,11 @@ class Mesh2d:
 
         # sparse adjacency matrix - each row is one element, each column is one node
         # if a node belongs to an element, the corresponding matrix entry is 1; otherwise, it is 0
-        row = np.arange(self.n_elem).repeat(3)
-        col = self.elem.flatten()
-        data = np.ones((3*self.n_elem,), dtype=int)
-        self.elem_node_adj = coo_matrix((data, (row, col)), shape=(self.n_elem, self.n_node))
+        # row = np.arange(self.n_elem).repeat(3)
+        # col = self.elem.flatten()
+        # data = np.ones((3*self.n_elem,), dtype=int)
+        # self.elem_node_adj = coo_matrix((data, (row, col)), shape=(self.n_elem, self.n_node))
+        self.elem_node_adj = to_adjacency_matrix(self.elem)
 
         # for each node, calculate number of adjacent elements
         self.n_elements_per_node = np.sum(self.elem_node_adj, axis=0)
@@ -82,10 +91,11 @@ class Mesh2d:
 
         # sparse adjacency matrix - each row is one edge, each column is one node
         # if a node belongs to an edge, the corresponding matrix entry is 1; otherwise, it is 0
-        row = np.arange(self.n_edge).repeat(2)
-        col = self.edge.flatten()
-        data = np.ones((2*self.n_edge,), dtype=int)
-        self.edge_node_adj = coo_matrix((data, (row, col)), shape=(self.n_edge, self.n_node))
+        # row = np.arange(self.n_edge).repeat(2)
+        # col = self.edge.flatten()
+        # data = np.ones((2*self.n_edge,), dtype=int)
+        # self.edge_node_adj = coo_matrix((data, (row, col)), shape=(self.n_edge, self.n_node))
+        self.edge_node_adj = to_adjacency_matrix(self.edge)
 
         # sparse adjacency matrix - each row is one element, each column is one edge
         # if an edge belongs to an element, the corresponding matrix entry is 2;
@@ -106,11 +116,14 @@ class Mesh2d:
         # sparse adjacency matrix - each row is first (second, third) edge of each element, each column is one node
         self.elem_node_adj_partial = []
         for i in range(3):
-            row = np.arange(self.n_elem).repeat(2)
+            # row = np.arange(self.n_elem).repeat(2)
+            # elem_edge_i = np.delete(self.elem, i-1, axis=1)
+            # col = elem_edge_i.flatten()
+            # data = np.ones((2*self.n_elem,), dtype=int)
+            # self.elem_node_adj_partial.append(coo_matrix((data, (row, col)), shape=(self.n_elem, self.n_node)))
             elem_edge_i = np.delete(self.elem, i-1, axis=1)
-            col = elem_edge_i.flatten()
-            data = np.ones((2*self.n_elem,), dtype=int)
-            self.elem_node_adj_partial.append(coo_matrix((data, (row, col)), shape=(self.n_elem, self.n_node)))
+            adj = to_adjacency_matrix(elem_edge_i)
+            self.elem_node_adj_partial.append(adj)
 
     def nodes_on_edges_for_PN(self, N=2):
         x = self.node_X[self.edge]
