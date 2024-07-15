@@ -45,18 +45,14 @@ class Mesh2d:
         self.node_X = node_X
         self.node_Y = node_Y
         self.elem = elem
-        self.update()
+        self.build_adjacency_matrices()
 
-    def update(self):
+    def build_adjacency_matrices(self):
         self.n_node = self.node_X.shape[0]
         self.n_elem = self.elem.shape[0]
 
         # sparse adjacency matrix - each row is one element, each column is one node
         # if a node belongs to an element, the corresponding matrix entry is 1; otherwise, it is 0
-        # row = np.arange(self.n_elem).repeat(3)
-        # col = self.elem.flatten()
-        # data = np.ones((3*self.n_elem,), dtype=int)
-        # self.elem_node_adj = coo_matrix((data, (row, col)), shape=(self.n_elem, self.n_node))
         self.elem_node_adj = to_adjacency_matrix(self.elem)
 
         # for each node, calculate number of adjacent elements
@@ -91,10 +87,6 @@ class Mesh2d:
 
         # sparse adjacency matrix - each row is one edge, each column is one node
         # if a node belongs to an edge, the corresponding matrix entry is 1; otherwise, it is 0
-        # row = np.arange(self.n_edge).repeat(2)
-        # col = self.edge.flatten()
-        # data = np.ones((2*self.n_edge,), dtype=int)
-        # self.edge_node_adj = coo_matrix((data, (row, col)), shape=(self.n_edge, self.n_node))
         self.edge_node_adj = to_adjacency_matrix(self.edge)
 
         # sparse adjacency matrix - each row is one element, each column is one edge
@@ -108,19 +100,12 @@ class Mesh2d:
         self.elem_edge_adj[self.elem_edge_adj_weighted == 1] = 0
         self.elem_edge_adj[self.elem_edge_adj_weighted == 2] = 1
 
-        # matrix of edge indices for each element:
-        # this way, edge ordering does not correspond to node ordering, they are sorted
-        # elem, edge, value = find(self.elem_edge_adj)
-
-        # for each element, edge 0 goes form node 0 to 1, 1 (1->2), 2(2->)
-        # sparse adjacency matrix - each row is first (second, third) edge of each element, each column is one node
+        # for each element, edge 0 goes from node 0 to 1, 1 (1->2), 2 (2->0)
+        # sparse adjacency matrix - each row is one element, each column is one node
+        # if the node belongs to i-th side of the element,
+        # the corresponding matrix entry is 1; otherwise it is 0
         self.elem_node_adj_partial = []
         for i in range(3):
-            # row = np.arange(self.n_elem).repeat(2)
-            # elem_edge_i = np.delete(self.elem, i-1, axis=1)
-            # col = elem_edge_i.flatten()
-            # data = np.ones((2*self.n_elem,), dtype=int)
-            # self.elem_node_adj_partial.append(coo_matrix((data, (row, col)), shape=(self.n_elem, self.n_node)))
             elem_edge_i = np.delete(self.elem, i-1, axis=1)
             adj = to_adjacency_matrix(elem_edge_i)
             self.elem_node_adj_partial.append(adj)
@@ -161,36 +146,40 @@ class Mesh2d:
         n_new_node = n_node_per_edge * self.n_edge
         self.edge_PN = np.arange(self.n_node, self.n_node+n_new_node).reshape((self.n_edge, n_node_per_edge))
         n_node = self.n_node+n_new_node
+
+        # extend "node" matrix
         self.node_X = np.concatenate((self.node_X, new_node_X.flatten()))
         self.node_Y = np.concatenate((self.node_Y, new_node_Y.flatten()))
 
         self.elem_PN_edge = np.empty((self.n_elem, 0), dtype=int)
         for i in range(3):
-            # indices of first (second, third) edges:
+            # sparse adjacency matrix - each row is one element, each column is one edge
+            # if i-th element side equals this edge, the corresponding matrix entry is 2
             tmp = self.elem_node_adj_partial[i] @ self.edge_node_adj.T
             tmp[tmp == 1] = 0
             _, edge, _ = find(tmp)
-            # compare order nodes in edges:
+            # starting node of i-th edge for each element according to "self.edge" matrix:
             edge_start = self.edge[edge, 0]
-            elem_node_i = self.elem[:, i]
+            # starting node of i-th edge for each element according to "self.elem" matrix:
+            edge_start_correct = self.elem[:, i]
+            correct_ordering = edge_start == edge_start_correct
 
-            this_edge = np.zeros((self.n_elem, n_node_per_edge))
-            correct_ordering = edge_start == elem_node_i
-            this_edge[correct_ordering, :] = self.edge_PN[edge[correct_ordering]]
-            this_edge[~correct_ordering, :] = np.fliplr(self.edge_PN[edge[~correct_ordering]])
+            edge_i = np.zeros((self.n_elem, n_node_per_edge))
+            edge_i[correct_ordering, :] = self.edge_PN[edge[correct_ordering]]
+            edge_i[~correct_ordering, :] = np.fliplr(self.edge_PN[edge[~correct_ordering]])
 
-            self.elem_PN_edge = np.concatenate((self.elem_PN_edge, this_edge), axis=1)
-            # TODO: permutation of node indices may be required
+            self.elem_PN_edge = np.concatenate((self.elem_PN_edge, edge_i), axis=1)
 
         # PN node indices for elements - nodes inside
         new_node_X, new_node_Y = self.nodes_inside_elements_for_PN(N)
         n_node_per_elem = new_node_X.shape[1]
         n_new_node = n_node_per_elem * self.n_elem
         self.elem_PN_inside = np.arange(n_node, n_node+n_new_node).reshape((self.n_elem, n_node_per_elem))
+
+        # extend "node" matrix, create "elem_PN" matrix:
         self.node_X = np.concatenate((self.node_X, new_node_X.flatten()))
         self.node_Y = np.concatenate((self.node_Y, new_node_Y.flatten()))
         self.elem_PN = np.concatenate((self.elem, self.elem_PN_edge, self.elem_PN_inside), axis=1)
-        self.update()
 
     def plot_mesh(self):
         plt.triplot(self.node_X, self.node_Y, self.elem)  # plot triangle edges
