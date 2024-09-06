@@ -1,0 +1,26 @@
+// -----------------------------------------------------------------------------
+//
+//  Gmsh tutorial 7 - appendix
+//
+//  2D scalar background mesh (in parsed format)
+//
+// -----------------------------------------------------------------------------
+
+// This post-processing view contains scalar triangles. The values represent the
+// target mesh sizes to be applied to the first tutorial, t1.geo.
+//
+// There are two ways to use this view as a background mesh:
+//
+// 1) open t1.geo, merge bgmesh.pos, select 'Apply as background mesh' in the
+//    view's options (by right mouse clicking on the view's button), and mesh
+//    the problem.
+//
+// 2) launch Gmsh with 'gmsh t1.geo -bgm bgmesh.pos' and mesh the problem.
+
+View "background mesh" {
+SP(2,2,2){0.3};
+SP(2,2,8){2};
+SP(2,8,8){4};
+SP(8,2,2){2};
+SP(8,8,2){1};
+};
